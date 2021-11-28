@@ -16,3 +16,9 @@ dataset_prepare/midas/model.pt
 */**/*.so*
 */**/*.dylib*
 */**/__pycache__
+.DS_Store
+/outputs_
+/output
+/outputs_ibims
+/dataset_prepare/ibims1
+/dataset_prepare/middleburry

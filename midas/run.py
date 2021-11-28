@@ -1,5 +1,7 @@
 """Compute depth maps for images in the input folder.
 """
+# adapted from https://github.com/isl-org/MiDaS/tree/v2
+
 import os
 import glob
 import torch
@@ -7,12 +9,13 @@ import utils
 import cv2
 import argparse
 
+
 from torchvision.transforms import Compose
 from models.midas_net import MidasNet
 from models.transforms import Resize, NormalizeImage, PrepareForNet
 
 
-def run(input_path, output_path, model_path, process_res):
+def run(input_path, output_path, model_path):
     """Run MonoDepthNN to compute depth maps.
     Args:
         input_path (str): path to input folder
@@ -32,8 +35,8 @@ def run(input_path, output_path, model_path, process_res):
     transform = Compose(
         [
             Resize(
-                process_res,
-                process_res,
+                384,
+                384,
                 resize_target=None,
                 keep_aspect_ratio=True,
                 ensure_multiple_of=32,
@@ -95,7 +98,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('--input_dir', required=True, type=str)
     parser.add_argument('--output_dir', required=True, type=str)
-    parser.add_argument('--res', required=True, type=int)
     args = parser.parse_args()
 
     MODEL_PATH = "model.pt"
@@ -105,4 +107,4 @@ if __name__ == "__main__":
     torch.backends.cudnn.benchmark = True
 
     # compute depth maps
-    run(args.input_dir, args.output_dir, MODEL_PATH, args.res)
+    run(args.input_dir, args.output_dir, MODEL_PATH)

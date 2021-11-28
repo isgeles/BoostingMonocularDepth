@@ -34,7 +34,8 @@ gdown.download(url, output, quiet=False)
 
 #
 # select device
-device = torch.device("cpu")
+# device = torch.device("cpu")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("device: %s" % device)
 
 print("nvidia:", torch.cuda.device_count())

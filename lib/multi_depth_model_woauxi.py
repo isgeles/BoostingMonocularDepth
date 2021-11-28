@@ -13,8 +13,9 @@ class RelDepthModel(nn.Module):
         self.depth_model = DepthModel(encoder)
 
     def inference(self, rgb):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         with torch.no_grad():
-            input = rgb.cuda()
+            input = rgb.to(device)
             depth = self.depth_model(input)
             #pred_depth_out = depth - depth.min() + 0.01
             return depth #pred_depth_out

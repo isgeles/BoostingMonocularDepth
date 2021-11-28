@@ -29,7 +29,8 @@ import warnings
 warnings.simplefilter('ignore', np.RankWarning)
 
 # select device
-device = torch.device("cuda")
+#device = torch.device("cuda")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("device: %s" % device)
 
 # Global variables
@@ -62,7 +63,7 @@ def run(dataset, option):
     elif option.depthNet == 1:
         global srlnet
         srlnet = DepthNet.DepthNet()
-        srlnet = torch.nn.DataParallel(srlnet, device_ids=[0]).cuda()
+        srlnet = torch.nn.DataParallel(srlnet, device_ids=[0]).to(device)
         checkpoint = torch.load('structuredrl/model.pth.tar')
         srlnet.load_state_dict(checkpoint['state_dict'])
         srlnet.eval()
@@ -90,7 +91,7 @@ def run(dataset, option):
         patchped_est_outputpath = option.output_dir + '_patchest'
         os.makedirs(patchped_est_outputpath, exist_ok=True)
 
-    # Generate mask used to smoothly blend the local pathc estimations to the base estimate.
+    # Generate mask used to smoothly blend the local patch estimations to the base estimate.
     # It is arbitrarily large to avoid artifacts during rescaling for each crop.
     mask_org = generatemask((3000, 3000))
     mask = mask_org.copy()
