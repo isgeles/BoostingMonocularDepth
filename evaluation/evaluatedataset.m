@@ -5,7 +5,7 @@ clear
 evaluation_name = 'testEvaluation';
 
 %% Fill in the needed path and flags for evaluation
-estimation_path = '../dataset_prepare/ibims1/org_est';
+estimation_path = '../outputs_ibims';
 gt_depth_path = '../dataset_prepare/ibims1/depth';
 evaluation_matfile_save_dir = './';
 dataset_disp_gttype = false; %% (true) for gt disparity (false) for gt depth 
