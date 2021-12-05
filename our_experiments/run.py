@@ -79,7 +79,7 @@ def run(dataset, option):
     elif option.depthNet == 2:
         global leresmodel
         leres_model_path = "res101.pth"
-        checkpoint = torch.load(leres_model_path)
+        checkpoint = torch.load(leres_model_path, map_location=torch.device(device))
         leresmodel = RelDepthModel(backbone='resnext101')
         leresmodel.load_state_dict(strip_prefix_if_present(checkpoint['depth_model'], "module."),
                                     strict=True)
@@ -112,7 +112,7 @@ def run(dataset, option):
     result_dir = option.output_dir
     os.makedirs(result_dir, exist_ok=True)
 
-    if option.savewholeest:
+    if option.savewholeest or option.savelowhigh:
         whole_est_outputpath = option.output_dir + '_wholeimage'
         os.makedirs(whole_est_outputpath, exist_ok=True)
 
@@ -157,8 +157,37 @@ def run(dataset, option):
         print('\t wholeImage being processed in :', whole_image_optimal_size)
 
         # Generate the base estimate using the double estimation.
-        whole_estimate = doubleestimate(img, option.net_receptive_field_size, whole_image_optimal_size,
+        whole_estimate, estimate_low, estimate_high = doubleestimate(img, option.net_receptive_field_size, whole_image_optimal_size,
                                         option.pix2pixsize, option.depthNet)
+
+        # Output low and high frequency estimations before merging
+        if option.savelowhigh:
+            path_low = os.path.join(whole_est_outputpath, images.name + "_low")
+            path_high = os.path.join(whole_est_outputpath, images.name + "_high")
+            if option.output_resolution == 1:
+                midas.utils.write_depth(path_low,
+                                        cv2.resize(estimate_low, (input_resolution[1], input_resolution[0]),
+                                                   interpolation=cv2.INTER_CUBIC), bits=2,
+                                        colored=option.colorize_results)
+                midas.utils.write_depth(path_high,
+                                        cv2.resize(estimate_high, (input_resolution[1], input_resolution[0]),
+                                                   interpolation=cv2.INTER_CUBIC), bits=2,
+                                        colored=option.colorize_results)
+            else:
+                midas.utils.write_depth(path_low, estimate_low, bits=2, colored=option.colorize_results)
+                midas.utils.write_depth(path_high, estimate_high, bits=2, colored=option.colorize_results)
+
+        # Output double estimation if required
+        if option.savewholeest:
+            path = os.path.join(whole_est_outputpath, images.name + "_base")
+            if option.output_resolution == 1:
+                midas.utils.write_depth(path,
+                                        cv2.resize(whole_estimate, (input_resolution[1], input_resolution[0]),
+                                                   interpolation=cv2.INTER_CUBIC), bits=2,
+                                        colored=option.colorize_results)
+            else:
+                midas.utils.write_depth(path, whole_estimate, bits=2, colored=option.colorize_results)
+
         if option.R0 or option.R20:
             path = os.path.join(result_dir, images.name)
             if option.output_resolution == 1:
@@ -168,17 +197,6 @@ def run(dataset, option):
             else:
                 midas.utils.write_depth(path, whole_estimate, bits=2, colored=option.colorize_results)
             continue
-
-        # Output double estimation if required
-        if option.savewholeest:
-            path = os.path.join(whole_est_outputpath, images.name)
-            if option.output_resolution == 1:
-                midas.utils.write_depth(path,
-                                        cv2.resize(whole_estimate, (input_resolution[1], input_resolution[0]),
-                                                   interpolation=cv2.INTER_CUBIC), bits=2,
-                                        colored=option.colorize_results)
-            else:
-                midas.utils.write_depth(path, whole_estimate, bits=2, colored=option.colorize_results)
 
         # Compute the multiplier described in section 6 of the main paper to make sure our initial patch can select
         # small high-density regions of the image.
@@ -264,7 +282,7 @@ def run(dataset, option):
 
             # We apply double estimation for patches. The high resolution value is fixed to twice the receptive
             # field size of the network for patches to accelerate the process.
-            patch_estimation = doubleestimate(patch_rgb, option.net_receptive_field_size, option.patch_netsize,
+            patch_estimation,_,_ = doubleestimate(patch_rgb, option.net_receptive_field_size, option.patch_netsize,
                                               option.pix2pixsize, option.depthNet)
 
             # Output patch estimation if required
@@ -440,7 +458,7 @@ def doubleestimate(img, size1, size2, pix2pixsize, net_type):
                 torch.max(prediction_mapped) - torch.min(prediction_mapped))
     prediction_mapped = prediction_mapped.squeeze().cpu().numpy()
 
-    return prediction_mapped
+    return prediction_mapped, estimate1, estimate2
 
 
 # Generate a single-input depth estimation
@@ -605,6 +623,9 @@ if __name__ == "__main__":
     parser.add_argument('--R20', action='store_true')
     parser.add_argument('--Final', action='store_true')
     parser.add_argument('--max_res', type=float, default=np.inf)
+
+    parser.add_argument('--savelowhigh', type=int, default=0, required=False,
+                        help='Activate to save low and high resolution depth of base estimate before merge.')
 
     # Check for required input
     option_, _ = parser.parse_known_args()

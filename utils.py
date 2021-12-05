@@ -206,7 +206,9 @@ class ImageDataset:
         self.dataset_dir = root_dir
         self.subsetname = subsetname
         self.rgb_image_dir = root_dir
-        self.files = sorted(os.listdir(self.rgb_image_dir))
+        included_extensions = ['jpg', 'jpeg', 'png']
+        self.files = sorted([fn for fn in os.listdir(self.rgb_image_dir)
+                      if any(fn.endswith(ext) for ext in included_extensions)])
 
     def __len__(self):
         return len(self.files)

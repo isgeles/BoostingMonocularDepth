@@ -73,6 +73,8 @@ class BaseOptions():
         parser.add_argument('--colorize_results', action='store_true')
         parser.add_argument('--max_res', type=float, default=np.inf)
 
+        parser.add_argument('--savelowhigh', type=int, default=0, required=False,
+                            help='Activate to save the base estimations')
         self.initialized = True
         return parser
 
