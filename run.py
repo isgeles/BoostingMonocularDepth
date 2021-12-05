@@ -1,3 +1,7 @@
+"""
+Adjusted run.py from authors of the Paper to also run MiDasV3..
+"""
+
 from operator import getitem
 from torchvision.transforms import Compose
 from torchvision.transforms import transforms
@@ -36,6 +40,8 @@ print("device: %s" % device)
 # Global variables
 pix2pixmodel = None
 midasmodel = None
+midasmodelv3 = None
+transform_midasV3 = None
 srlnet = None
 leresmodel = None
 factor = None
@@ -54,12 +60,14 @@ def run(dataset, option):
     pix2pixmodel.eval()
 
     # Decide which depth estimation network to load
+    # MiDasV2
     if option.depthNet == 0:
         midas_model_path = "midas/model.pt"
         global midasmodel
         midasmodel = MidasNet(midas_model_path, non_negative=True)
         midasmodel.to(device)
         midasmodel.eval()
+    # SGR
     elif option.depthNet == 1:
         global srlnet
         srlnet = DepthNet.DepthNet()
@@ -67,6 +75,7 @@ def run(dataset, option):
         checkpoint = torch.load('structuredrl/model.pth.tar')
         srlnet.load_state_dict(checkpoint['state_dict'])
         srlnet.eval()
+    # LeRes
     elif option.depthNet == 2:
         global leresmodel
         leres_model_path = "res101.pth"
@@ -78,6 +87,26 @@ def run(dataset, option):
         torch.cuda.empty_cache()
         leresmodel.to(device)
         leresmodel.eval()
+    # MiDasV3
+    elif option.depthNet == 3:
+        # also change in midasestimate
+        model_type = "DPT_Large"  # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
+        # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
+        # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
+
+        global midasmodelv3
+        midasmodelv3 = torch.hub.load("intel-isl/MiDaS", model_type)
+        midasmodelv3.to(device)
+        midasmodelv3.eval()
+
+        global transform_midasV3
+        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+        if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
+            transform_midasV3 = midas_transforms.dpt_transform
+        else:
+            transform_midasV3 = midas_transforms.small_transform
+
+
 
     # Generating required directories
     result_dir = option.output_dir
@@ -106,6 +135,11 @@ def run(dataset, option):
     # Go through all images in input directory
     print("start processing")
     for image_ind, images in enumerate(dataset):
+
+        if os.path.isfile(os.path.join(result_dir, images.name + '.png')):
+            print('skipping image', image_ind, ':', images.name)
+            continue
+
         print('processing image', image_ind, ':', images.name)
 
         # Load image from dataset
@@ -421,6 +455,8 @@ def singleestimate(img, msize, net_type):
         return estimatesrl(img, msize)
     elif net_type == 2:
         return estimateleres(img, msize)
+    elif net_type == 3:
+        return estimatemidasV3(img, msize)
 
 
 # Inference on SGRNet
@@ -526,6 +562,27 @@ def estimateleres(img, msize):
     return prediction
 
 
+# Inference on MiDas v3
+def estimatemidasV3(img, msize):
+    img = img * 255.
+
+    input_batch = transform_midasV3(img).to(device)
+
+    with torch.no_grad():
+        prediction = midasmodelv3(input_batch)
+
+        prediction = torch.nn.functional.interpolate(
+            prediction.unsqueeze(1),
+            size=img.shape[:2],
+            mode="bicubic",
+            align_corners=False,
+        ).squeeze()
+
+    output = prediction.cpu().numpy()
+
+    return output
+
+
 if __name__ == "__main__":
     # Adding necessary input arguments
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -571,8 +628,11 @@ if __name__ == "__main__":
     elif option_.depthNet == 2:
         option_.net_receptive_field_size = 448
         option_.patch_netsize = 2 * option_.net_receptive_field_size
+    elif option_.depthNet == 3:
+        option_.net_receptive_field_size = 384
+        option_.patch_netsize = 2 * option_.net_receptive_field_size
     else:
-        assert False, 'depthNet can only be 0,1 or 2'
+        assert False, 'depthNet can only be 0,1 or 2 (or 3)'
 
     # Create dataset from input images
     dataset_ = ImageDataset(option_.data_dir, 'test')

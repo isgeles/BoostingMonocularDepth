@@ -22,3 +22,14 @@ dataset_prepare/midas/model.pt
 /outputs_ibims
 /dataset_prepare/ibims1
 /dataset_prepare/middleburry
+/dataset_prepare/DIODE
+/our_experiments/IBIMS1/MiDas/outputs_final
+/our_experiments/IBIMS1/MiDas/outputs_original
+/structuredrl/models/syncbn/modules
+/our_experiments/IBIMS1/SGR/outputs_final
+/our_experiments/IBIMS1/SGR/outputs_original
+/our_experiments/outputs
+/outputs_diode
+/outputs/outputs_v3
+/outputs/outputs_v3_wholeimage
+/ou
