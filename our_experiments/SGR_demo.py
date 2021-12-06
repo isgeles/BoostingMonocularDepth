@@ -3,12 +3,8 @@
 
 # demo
 """ Adapted code from the SGR repository demo notebook"""
-"""
-Author: Ke Xian
-Email: kexian@hust.edu.cn
-Create_Date: 2019/05/21
-"""
 
+import cv2
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -27,7 +23,7 @@ from PIL import Image
 
 sys.path.append("../structuredrl")
 sys.path.append("../structuredrl/models/syncbn")
-print(sys.path)
+
 from models import DepthNet
 
 # =======================
@@ -65,7 +61,9 @@ def demo(net, args):
 
         output_dir = os.path.join(args.result_dir, im)
         image_pil = image_pil.resize((ori_width, ori_height), Image.BILINEAR)
-        plt.imsave(output_dir, np.asarray(image_pil), cmap='inferno')
+        cv2.imwrite(output_dir,np.asarray(image_pil))
+        
+
 
 
 if __name__ == '__main__':
