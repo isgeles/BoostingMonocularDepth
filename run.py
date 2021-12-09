@@ -41,12 +41,12 @@ print("device: %s" % device)
 pix2pixmodel = None
 midasmodel = None
 midasmodelv3 = None
-transform_midasV3 = None
 srlnet = None
 leresmodel = None
 factor = None
 whole_size_threshold = 3000  # R_max from the paper
-GPU_threshold = 1600 - 32 # Limit for the GPU (NVIDIA RTX 2080), can be adjusted 
+GPU_threshold = 1600 - 32  # Limit for the GPU (NVIDIA RTX 2080), can be adjusted
+
 
 # MAIN PART OF OUR METHOD
 def run(dataset, option):
@@ -90,23 +90,14 @@ def run(dataset, option):
     # MiDasV3
     elif option.depthNet == 3:
         # also change in midasestimate
-        model_type = "DPT_Large"  # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
-        # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
+        # model_type = "DPT_Large"  # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
+        model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
         # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
 
         global midasmodelv3
         midasmodelv3 = torch.hub.load("intel-isl/MiDaS", model_type)
         midasmodelv3.to(device)
         midasmodelv3.eval()
-
-        global transform_midasV3
-        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
-        if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
-            transform_midasV3 = midas_transforms.dpt_transform
-        else:
-            transform_midasV3 = midas_transforms.small_transform
-
-
 
     # Generating required directories
     result_dir = option.output_dir
@@ -159,6 +150,8 @@ def run(dataset, option):
         # Generate the base estimate using the double estimation.
         whole_estimate, estimate_low, estimate_high = doubleestimate(img, option.net_receptive_field_size, whole_image_optimal_size,
                                         option.pix2pixsize, option.depthNet)
+        print("Double base estimate created from sizes {} (low) and {} (high)".format(option.net_receptive_field_size,
+                                                                                      whole_image_optimal_size))
 
         # Output low and high frequency estimations before merging
         if option.savelowhigh:
@@ -286,7 +279,7 @@ def run(dataset, option):
                                               option.pix2pixsize, option.depthNet)
 
             # Output patch estimation if required
-            if option.savepatchs:
+            if option.savepatchs and patch_ind % 5 == 0:  # only some patches are saved
                 path = os.path.join(patchped_est_outputpath, imageandpatchs.name + '_{:04}'.format(patch_id))
                 midas.utils.write_depth(path, patch_estimation, bits=2, colored=option.colorize_results)
 
@@ -582,23 +575,43 @@ def estimateleres(img, msize):
 
 # Inference on MiDas v3
 def estimatemidasV3(img, msize):
-    img = img * 255.
 
-    input_batch = transform_midasV3(img).to(device)
+    transform = Compose(
+        [
+            Resize(
+                msize,
+                msize,
+                resize_target=None,
+                keep_aspect_ratio=True,
+                ensure_multiple_of=32,
+                resize_method="minimal",
+                image_interpolation_method=cv2.INTER_CUBIC,
+            ),
+            NormalizeImage(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+            PrepareForNet(),
+        ]
+    )
 
+    img_input = transform({"image": img})["image"]
+
+    # Forward pass
     with torch.no_grad():
-        prediction = midasmodelv3(input_batch)
+        sample = torch.from_numpy(img_input).to(device).unsqueeze(0)
+        prediction = midasmodelv3.forward(sample)
 
-        prediction = torch.nn.functional.interpolate(
-            prediction.unsqueeze(1),
-            size=img.shape[:2],
-            mode="bicubic",
-            align_corners=False,
-        ).squeeze()
+    prediction = prediction.squeeze().cpu().numpy()
+    prediction = cv2.resize(prediction, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
 
-    output = prediction.cpu().numpy()
+    # Normalization
+    depth_min = prediction.min()
+    depth_max = prediction.max()
 
-    return output
+    if depth_max - depth_min > np.finfo("float").eps:
+        prediction = (prediction - depth_min) / (depth_max - depth_min)
+    else:
+        prediction = 0
+
+    return prediction
 
 
 if __name__ == "__main__":

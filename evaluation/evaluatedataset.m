@@ -5,12 +5,22 @@ clear
 evaluation_name = 'testEvaluation';
 
 %% Fill in the needed path and flags for evaluation
-estimation_path = '../our_experiments/IBIMS1/SGR/outputs_original';
-gt_depth_path = '../dataset_prepare/ibims1/depth';
-evaluation_matfile_save_dir = './';
-dataset_disp_gttype = false; %% (true) for gt disparity (false) for gt depth 
-superpixel_scale = 1; % use 0.2 for middleburry and 1 for ibims1 and NYU %Used for rescaling the image before extracting superpixel centers for D3R error metric. smaller scale for high res images results in a faster evaluation.
+%estimation_path = '../our_experiments/DIODE/outputs_midasV3';
+% estimation_path = '../our_experiments/IBIMS1/LeRes/outputs_original';
+%estimation_path = '../our_experiments/IBIMS1/MiDaS v3/outputs_midasV3';
+estimation_path = '../our_experiments/IBIMS1/MiDaS v3/outputs_original';
 
+
+gt_depth_path = '../dataset_prepare/ibims1/depth';
+%gt_depth_path = '../dataset_prepare/DIODE/depth_png_';
+
+evaluation_matfile_save_dir = './';
+
+dataset_disp_gttype = false; %% (true) for gt disparity (false) for gt depth
+dataset_disp_esttype = false; %% (true) for depth estimation like LeReS or (false) for inverse depth / disparity like MiDaS 
+
+superpixel_scale = 1; % use 0.2 for middleburry and 1 for ibims1 and NYU %Used for rescaling the image before extracting superpixel centers for D3R error metric. smaller scale for high res images results in a faster evaluation.
+%superpixel_scale = 0.5; % scale was set to 0.5 for DIODE dataset
 %%
 
 imglist = dir(fullfile(gt_depth_path,'*.png'));
@@ -36,11 +46,24 @@ for img=1:numel(imglist)
         gt_disp = rescale(gt_disp,0,1);
         gt_depth = rescale(gt_depth,0,1);
     end
+    
+    if exist(fullfile(estimation_path,sprintf('%s',imagename)), 'file') == 0
+        % File does not exist
+        % Skip to bottom of loop and continue with the loop
+        fprintf('File %s is not present in estimations.\n', imagename)
+        continue;
+    end
         
     estimate_disp = im2double(imread(fullfile(estimation_path,sprintf('%s',imagename))));
     estimate_disp_ = rescale(estimate_disp,min_gt_disp,1);
     estimate_depth = 1./estimate_disp_;
     estimate_depth = rescale(estimate_depth,0,1);
+    
+    if dataset_disp_esttype
+        temp = estimate_disp;
+        estimate_disp = estimate_depth;
+        estimate_depth = temp;
+    end
     
     gt_small=imresize(gt_disp,superpixel_scale,'nearest');
     samples=5000;

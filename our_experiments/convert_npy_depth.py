@@ -16,13 +16,14 @@ def npy_to_png(npy_dir, img_dir):
         if file.endswith(".npy"):
             curr = np.load(os.path.join(npy_dir, file))
             curr = curr.squeeze()
-
+            curr = (curr / curr.max()) * 255.0
+            curr = curr.astype('uint8')
             img = Image.fromarray(curr)
-            img = img.convert("L")
+#            img = img.convert("L")
             # create output folder
             os.makedirs(img_dir, exist_ok=True)
 
-            #file = file.replace("_depth", '')  # only for DIODE dataset to remove 'depth' from the name
+            file = file.replace("_depth", '')  # only for DIODE dataset to remove 'depth' from the name
             img.save(os.path.join(img_dir, file[:-3] + 'png'))
 
 
