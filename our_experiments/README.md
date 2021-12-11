@@ -24,6 +24,28 @@ Download the IBIMS-1 and place all rgb images in a folder.
 - LeReS: download weights and place in root repository directory, run as described by the authors
 - MiDaS v3: see below for details
 
+## added fix to memory overflow Leres implementation 
+
+The implementation of running Leres seems to causing a memory leak, as evidenced by continuous errors such as
+```
+RuntimeError: CUDA out of memory. Tried to allocate 2.56 GiB (GPU 0; 15.90 GiB total capacity; 10.38 GiB already allocated; 1.83 GiB free; 2.99 GiB cached)
+```
+The solution to this is catching and checking errors, as well as doing a memory collection in python to maximize the available memory before retrying the model again. the options tend to be very limited since estimating patches is a very memory intensive task, but this is a an easy fix to this problem.
+```py
+    try:
+        # Forward pass
+        with torch.no_grad():
+            prediction = leresmodel.inference(img_torch)
+    except RuntimeError as err:
+        printf('CUDA ran out of memory, retrying...')
+        gc.collect() # Python cleanup
+        with torch.no_grad():
+            prediction = leresmodel.inference(img_torch)
+    catch Exception as err:
+        printf('other error occured')
+        raise
+```
+
 ## Adding a depth model (MiDaS v3) to the code baseline
 Demo code for MiDaS v3 was adjusted from the MiDaS repository, such that it runs a whole folder of images in `run_midasV3.py`.
 It automatically downloads the right weights from torchhub and the right transformation for the original estimation.
