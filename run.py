@@ -562,9 +562,18 @@ def estimateleres(img, msize):
     A_resize = cv2.resize(rgb_c, (msize, msize))
     img_torch = scale_torch(A_resize)[None, :, :, :]
 
-    # Forward pass
-    with torch.no_grad():
-        prediction = leresmodel.inference(img_torch)
+    try:
+        # Forward pass
+        with torch.no_grad():
+            prediction = leresmodel.inference(img_torch)
+    except RuntimeError as err:
+        printf('CUDA ran out of memory, retrying...')
+        gc.collect() # Python cleanup
+        with torch.no_grad():
+            prediction = leresmodel.inference(img_torch)
+    catch Exception as err:
+        printf('other error occured')
+        raise
 
     prediction = prediction.squeeze().cpu().numpy()
     prediction = cv2.resize(prediction, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
