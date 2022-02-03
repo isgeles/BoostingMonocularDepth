@@ -6,18 +6,18 @@ evaluation_name = 'testEvaluation';
 
 %% Fill in the needed path and flags for evaluation
 %estimation_path = '../our_experiments/DIODE/outputs_midasV3';
-% estimation_path = '../our_experiments/IBIMS1/LeRes/outputs_original';
 %estimation_path = '../our_experiments/IBIMS1/MiDaS v3/outputs_midasV3';
-estimation_path = '../our_experiments/IBIMS1/MiDaS v3/outputs_original';
+%estimation_path = '../our_experiments/IBIMS1/MiDaS v3/outputs_final';
+estimation_path = '../our_experiments/IBIMS1/LeRes/outputs_final';
 
 
 gt_depth_path = '../dataset_prepare/ibims1/depth';
-%gt_depth_path = '../dataset_prepare/DIODE/depth_png_';
+%gt_depth_path = '../dataset_prepare/DIODE/depth_png';
 
 evaluation_matfile_save_dir = './';
 
 dataset_disp_gttype = false; %% (true) for gt disparity (false) for gt depth
-dataset_disp_esttype = false; %% (true) for depth estimation like LeReS or (false) for inverse depth / disparity like MiDaS 
+dataset_disp_esttype = true; %% (true) for depth estimation like LeReS or (false) for inverse depth / disparity like MiDaS 
 
 superpixel_scale = 1; % use 0.2 for middleburry and 1 for ibims1 and NYU %Used for rescaling the image before extracting superpixel centers for D3R error metric. smaller scale for high res images results in a faster evaluation.
 %superpixel_scale = 0.5; % scale was set to 0.5 for DIODE dataset
@@ -27,9 +27,18 @@ imglist = dir(fullfile(gt_depth_path,'*.png'));
 fprintf('Estimation path: %s\nGT path: %s\nGT type:%d (0:depth 1:disparity)\nTotal number of images: %d \n',estimation_path,gt_depth_path,dataset_disp_gttype,numel(imglist))
 
 for img=1:numel(imglist)
+    
     imagename = imglist(img).name;
+    
+    if exist(fullfile(estimation_path,sprintf('%s',imagename)), 'file') == 0
+        % File does not exist
+        % Skip to bottom of loop and continue with the loop
+        fprintf('File %s is not present in estimations.\n', imagename)
+        continue;
+    end
+    
     if dataset_disp_gttype
-        gt_disp = im2double(imread(fullfile(gt_depth_path,sprintf('%s',imagename))));
+        gt_depth = im2double(imread(fullfile(gt_depth_path,sprintf('%s',imagename))));
         gt_disp(gt_disp==0)=nan;
         min_gt_disp = min(gt_disp(:));
         gt_depth = 1./gt_disp;
@@ -38,6 +47,17 @@ for img=1:numel(imglist)
     else
         gt_depth = im2double(imread(fullfile(gt_depth_path,sprintf('%s',imagename))));
         gt_depth(gt_depth==0)=nan;
+        
+        % -- addition: ibims1 dataset's ground truth depth maps contain some incorrect values
+        % that affected the min-max-normalization of the ground truth and created some errors
+        % with guided filter those points are detected and removed.
+        gt_depth_gf = imguidedfilter(gt_depth,'NeighborhoodSize',150);
+        m = min(gt_depth_gf(:));
+        M = max(gt_depth_gf(:));
+        gt_depth(gt_depth<m)=nan;
+        gt_depth(gt_depth>M)=nan;
+        % --
+        
         gt_disp = 1./gt_depth;
         gt_disp = gt_disp / max(gt_disp(:));
         gt_depth(gt_disp>1)=nan;
@@ -46,14 +66,7 @@ for img=1:numel(imglist)
         gt_disp = rescale(gt_disp,0,1);
         gt_depth = rescale(gt_depth,0,1);
     end
-    
-    if exist(fullfile(estimation_path,sprintf('%s',imagename)), 'file') == 0
-        % File does not exist
-        % Skip to bottom of loop and continue with the loop
-        fprintf('File %s is not present in estimations.\n', imagename)
-        continue;
-    end
-        
+       
     estimate_disp = im2double(imread(fullfile(estimation_path,sprintf('%s',imagename))));
     estimate_disp_ = rescale(estimate_disp,min_gt_disp,1);
     estimate_depth = 1./estimate_disp_;
